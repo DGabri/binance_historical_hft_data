@@ -57,11 +57,9 @@ def download_trades_data(year: int, start_month: int, end_month: int, start_day:
     else:
         days = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
-    i = start_month
     now = datetime.today()
 
-
-    for i in range(start_month, len(days)):
+    for i in range(start_month, end_month):
 
         month = i
 
@@ -70,15 +68,14 @@ def download_trades_data(year: int, start_month: int, end_month: int, start_day:
                 if market_type == 'spot':
                     base_url = f"https://data.binance.vision/data/spot/daily/trades/{symbol.upper()}/"
                 else:
-                    base_url = f"https://data.binance.vision/?prefix=data/futures/um/daily/trades/{symbol.upper()}/"
+                    base_url = f"https://data.binance.vision/data/futures/um/daily/trades/{symbol.upper()}/"
                 if int(month) < 10:
                     month = '0'+str(month)
                 for day in range(start_day, days[i]+1):
-                    if (day <= end_day) and (day != now.day):
+                    if (day <= end_day):
                         if int(day) < 10:
                             day = '0'+str(day)
-                        
-
+                    
                         suffix = f"{symbol.upper()}-trades-{year}-{month}-{day}.zip"
 
                         url = urljoin(base_url, suffix)
@@ -102,7 +99,7 @@ def download_trades_data(year: int, start_month: int, end_month: int, start_day:
                 if market_type == 'spot':
                     base_url = f"https://data.binance.vision/data/spot/monthly/trades/{symbol.upper()}/"
                 else:
-                    base_url = f"https://data.binance.vision/?prefix=data/futures/um/monthly/trades/{symbol.upper()}/"
+                    base_url = f"https://data.binance.vision/data/futures/um/daily/trades/{symbol.upper()}/"
 
                 if (month == now.month) and (year == now.year):
                     break
@@ -127,7 +124,12 @@ def download_trades_data(year: int, start_month: int, end_month: int, start_day:
                             with open(os.path.join(__location__+"/historical_zip/", suffix), 'wb')as output:
                                 shutil.copyfileobj(raw, output)
 
-def merge_trades_datasets():
+download_trades_data(2022, 8, 9, 1, 31, 'daily', 'ATOMUSDT', 'futures')
+bulk_extract_files()
+delete_zip_files()
+
+
+def merge_trades_datasets(market):
     files = sorted(show_all_datasets())
     actual_symbol = 0
     df = pd.DataFrame({'price':[],'qty':[],'quote_vol':[], 'ts':[],'side':[]})
@@ -143,7 +145,10 @@ def merge_trades_datasets():
             if len(df) > 0 :
                 df = df[['ts', 'price', 'qty', 'side', 'quote_vol']]
                 df.set_index('ts', inplace=True)
-                df.to_csv(__location__+"/results/"+actual_symbol+'_trades.csv')
+                if market == 'spot':
+                    df.to_csv(__location__+"/results/"+actual_symbol+'_spot.csv')
+                else:
+                    df.to_csv(__location__+"/results/"+actual_symbol+'_futures.csv')
                 actual_symbol = symbol
                 df = pd.DataFrame({'price':[],'qty':[],'quote_vol':[], 'ts':[],'side':[]})
                 df1 = pd.read_csv(file)
@@ -161,4 +166,29 @@ def merge_trades_datasets():
             df1.rename(columns={col_names[0]: 'trade_id', col_names[1]: 'price', col_names[2]: 'qty', col_names[3]: 'quote_vol', col_names[4]: 'ts', col_names[5]: 'side' }, inplace=True)
             df1.drop(['trade_id'], axis=1, inplace=True)             
             df = df.append(df1, ignore_index=True)
+    
+    cols = df.columns
+    if 'Unnamed: 0' in cols:
+        df.drop(['Unnamed: 0'], axis=1, inplace=True)             
+    df.set_index('ts', inplace=True)
+    if market == 'spot':
+        df.to_csv(__location__+"/results/"+actual_symbol+'_spot.csv')
+    else:
+        df.to_csv(__location__+"/results/"+actual_symbol+'_futures.csv')
 
+merge_trades_datasets('futures')
+
+"""start = time.time()
+print(f"SAVING CSV: {name}, LEN:{len(df)}")
+df.to_parquet(name+'_trades.csv')
+df.to_parquet('test.gzip',compression='gzip')
+df.to_feather('test.feather')
+print(f"SAVED CSV: {name}")
+end = time.time()
+print(f"ELAPSED: {end-start} sec")
+print(name) """
+df = pd.read_csv("/home/data/binance_scraper/results/FETUSDT_trades.csv")
+df['price'].plot()
+df['qty'].plot()
+
+df['ts'] = pd.to_datetime(df['ts'], unit='ms')
