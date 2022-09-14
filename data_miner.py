@@ -40,6 +40,11 @@ def delete_zip_files():
     for zip in zips:
         os.remove(zip)
 
+def delete_datasets():
+    zips = show_all_datasets()
+    for zip in zips:
+        os.remove(zip)
+
 def show_all_zip_files(path=f"{__location__}/historical_zip/*.zip"):
     return glob.glob(path)
 
@@ -59,10 +64,9 @@ def download_trades_data(year: int, start_month: int, end_month: int, start_day:
 
     now = datetime.today()
 
-    for i in range(start_month, end_month):
+    for i in range(start_month, end_month+1):
 
         month = i
-
         if (month != 0) and (month <= end_month):
             if tf == "daily":
                 if market_type == 'spot':
@@ -71,11 +75,13 @@ def download_trades_data(year: int, start_month: int, end_month: int, start_day:
                     base_url = f"https://data.binance.vision/data/futures/um/daily/trades/{symbol.upper()}/"
                 if int(month) < 10:
                     month = '0'+str(month)
+
                 for day in range(start_day, days[i]+1):
-                    if (day <= end_day):
+
+                    if (day != end_day+1) and (month != end_month+1):
                         if int(day) < 10:
                             day = '0'+str(day)
-                    
+                        
                         suffix = f"{symbol.upper()}-trades-{year}-{month}-{day}.zip"
 
                         url = urljoin(base_url, suffix)
@@ -111,7 +117,6 @@ def download_trades_data(year: int, start_month: int, end_month: int, start_day:
                     suffix = f"{symbol.upper()}-trades-{year}-{month}.zip"
                     
                     url = urljoin(base_url, suffix)
-                    #print(url)
                     with requests.get(url, stream=True) as r:
                         
                         # check header to get content length, in bytes
@@ -123,11 +128,6 @@ def download_trades_data(year: int, start_month: int, end_month: int, start_day:
                             # save the output to a file
                             with open(os.path.join(__location__+"/historical_zip/", suffix), 'wb')as output:
                                 shutil.copyfileobj(raw, output)
-
-download_trades_data(2022, 8, 9, 1, 31, 'daily', 'ATOMUSDT', 'futures')
-bulk_extract_files()
-delete_zip_files()
-
 
 def merge_trades_datasets(market):
     files = sorted(show_all_datasets())
@@ -175,20 +175,4 @@ def merge_trades_datasets(market):
         df.to_csv(__location__+"/results/"+actual_symbol+'_spot.csv')
     else:
         df.to_csv(__location__+"/results/"+actual_symbol+'_futures.csv')
-
-merge_trades_datasets('futures')
-
-"""start = time.time()
-print(f"SAVING CSV: {name}, LEN:{len(df)}")
-df.to_parquet(name+'_trades.csv')
-df.to_parquet('test.gzip',compression='gzip')
-df.to_feather('test.feather')
-print(f"SAVED CSV: {name}")
-end = time.time()
-print(f"ELAPSED: {end-start} sec")
-print(name) """
-df = pd.read_csv("/home/data/binance_scraper/results/FETUSDT_trades.csv")
-df['price'].plot()
-df['qty'].plot()
-
-df['ts'] = pd.to_datetime(df['ts'], unit='ms')
+    delete_datasets()
